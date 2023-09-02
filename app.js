@@ -12,16 +12,23 @@ const errorHandler = require('./middlewares/errorHandler');
 const { requestLogger, errorLogger } = require('./middlewares/logger');
 
 const app = express();
-app.use(cors({
-  origin: ['http://localhost:3001',
-    'http://localhost:3000',
-  ],
-  credentials: true,
-  preflightContinue: false,
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin'],
-  optionsSuccessStatus: 204,
-}));
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3001",
+      "http://localhost:3000",
+      "https://api.diploma-oleinikov.nomoredomainsicu.ru",
+      "http://api.diploma-oleinikov.nomoredomainsicu.ru",
+      "https://diploma-oleinikov.nomoredomainsicu.ru",
+      "http://diploma-oleinikov.nomoredomainsicu.ru",
+    ],
+    credentials: true,
+    preflightContinue: false,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+    allowedHeaders: ["Content-Type", "Authorization", "Origin"],
+    optionsSuccessStatus: 204,
+  })
+);
 
 app.use(helmet());
 
