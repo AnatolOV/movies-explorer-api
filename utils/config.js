@@ -1,15 +1,16 @@
+const { config } = require('dotenv');
+
 const {
-  PORT = 3000,
-  MONGO_URL = 'mongodb://127.0.0.1:27017/bitfilmsdb',
   NODE_ENV,
-  JWT_SECRET = 'dev-secret',
-  SALT = 10,
+  SECRET_KEY_DEV = 'secret-word',
+  DB_URL_DEV = 'mongodb://127.0.0.1:27017/bitfilmsdb',
 } = process.env;
 
+if (NODE_ENV === 'production') {
+  config();
+}
+
 module.exports = {
-  PORT,
-  MONGO_URL,
-  NODE_ENV,
-  JWT_SECRET,
-  SALT,
+  SECRET_KEY_DEV,
+  DB_URL_DEV,
 };

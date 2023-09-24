@@ -1,7 +1,13 @@
 const mongoose = require('mongoose');
-const validator = require('validator');
+const isURL = require('validator/lib/isURL');
 
-const movieSchema = new mongoose.Schema({
+const { errorText } = require('../utils/constants');
+
+const { ObjectId } = mongoose.Schema.Types;
+
+const { Schema } = mongoose;
+
+const movieSchema = Schema({
   country: {
     type: String,
     required: true,
@@ -26,28 +32,29 @@ const movieSchema = new mongoose.Schema({
     type: String,
     required: true,
     validate: {
-      validator: (v) => validator.isURL(v),
-      message: 'Некорректный URL',
+      validator: (v) => isURL(v),
+      message: errorText.URLVALIDATIONERROR,
     },
   },
   trailerLink: {
     type: String,
     required: true,
     validate: {
-      validator: (v) => validator.isURL(v),
-      message: 'Некорректный URL',
+      validator: (v) => isURL(v),
+      message: errorText.URLVALIDATIONERROR,
     },
   },
   thumbnail: {
     type: String,
     required: true,
     validate: {
-      validator: (v) => validator.isURL(v),
-      message: 'Некорректный URL',
+      validator: (v) => isURL(v),
+      message: errorText.URLVALIDATIONERROR,
     },
   },
   owner: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: ObjectId,
+    ref: 'user',
     required: true,
   },
   movieId: {

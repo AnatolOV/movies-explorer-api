@@ -1,57 +1,47 @@
 require('dotenv').config();
-const express = require('express');
 const mongoose = require('mongoose');
-const { errors } = require('celebrate');
-const cors = require('cors');
+const express = require('express');
 const helmet = require('helmet');
-const cookieParser = require('cookie-parser');
-const { MONGO_URL, PORT } = require('./utils/config');
-const limiter = require('./middlewares/limiter');
-const routes = require('./routes/index');
-const errorHandler = require('./middlewares/errorHandler');
+const { errors } = require('celebrate');
+const router = require('./routes/index');
+const handleError = require('./middlewares/handleError');
 const { requestLogger, errorLogger } = require('./middlewares/logger');
+const cors = require('./middlewares/cors');
+const limiter = require('./middlewares/rateLimit');
+
+const { DB_URL_DEV } = require('./utils/config');
+
+const { PORT = 3000, DB_URL } = process.env;
 
 const app = express();
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3001",
-      "http://localhost:3000",
-      "https://api.diploma-oleinikov.nomoredomainsicu.ru",
-      "http://api.diploma-oleinikov.nomoredomainsicu.ru",
-      "https://diploma-oleinikov.nomoredomainsicu.ru",
-      "http://diploma-oleinikov.nomoredomainsicu.ru",
-    ],
-    credentials: true,
-    preflightContinue: false,
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-    allowedHeaders: ["Content-Type", "Authorization", "Origin"],
-    optionsSuccessStatus: 204,
+
+mongoose
+  .connect(DB_URL || DB_URL_DEV)
+  .then(() => {
+    // eslint-disable-next-line no-console
+    console.log('БД подключена');
   })
-);
+  .catch(() => {
+    // eslint-disable-next-line no-console
+    console.log('Не удалось подключиться к БД');
+  });
+
+app.use(express.json());
+
+app.use(cors);
+
+app.use(requestLogger);
 
 app.use(helmet());
 
-// подключаемся к серверу mongo
-mongoose.connect(MONGO_URL);
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// подключаем мидлвары, роуты и всё остальное...
-app.use(requestLogger);
-
 app.use(limiter);
 
-app.use(routes);
+app.use(router);
 
 app.use(errorLogger);
 
 app.use(errors());
 
-app.use(errorHandler);
+app.use(handleError);
 
-app.listen(PORT, () => {
-  console.log(`app слушает порт: ${PORT}`);
-});
+app.listen(PORT);

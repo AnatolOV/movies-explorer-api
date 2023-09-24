@@ -1,23 +1,32 @@
 const jwt = require('jsonwebtoken');
-const AuthError = require('../errors/auth-error');
+const UnauthorizedError = require('../utils/errors/UnauthorizedError');
+const { SECRET_KEY_DEV } = require('../utils/config');
+const { errorText } = require('../utils/constants');
 
-const { NODE_ENV, JWT_SECRET } = process.env;
+const { NODE_ENV, SECRET_KEY } = process.env;
 
-const handleUnauthorized = (req, res, next) => next(new AuthError('Необходима авторизация'));
+// Проверка аутентификации пользователя
+module.exports = (req, res, next) => {
+  const { authorization } = req.headers;
 
-const auth = (req, res, next) => {
-  const token = req.cookies.jwt;
-  if (!token) {
-    return handleUnauthorized(req, res, next);
+  if (!authorization || !authorization.startsWith('Bearer')) {
+    throw new UnauthorizedError(errorText.AUTHENTICATEERROR);
   }
+
+  const token = authorization.replace('Bearer ', '');
   let payload;
-  try {
-    payload = jwt.verify(token, NODE_ENV === 'production' ? JWT_SECRET : 'dev-secret');
-  } catch (err) {
-    return handleUnauthorized(req, res, next);
-  }
-  req.user = payload;
-  return next();
-};
 
-module.exports = auth;
+  try {
+    // Проверка валидности и расшифровка JWT токена
+    payload = jwt.verify(
+      token,
+      NODE_ENV === 'production' ? SECRET_KEY : SECRET_KEY_DEV,
+    );
+  } catch (err) {
+    next(new UnauthorizedError(errorText.AUTHENTICATEERROR));
+    return;
+  }
+  // Присваиваем расшифрованные данные токена в объект запроса
+  req.user = payload;
+  next();
+};

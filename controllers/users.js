@@ -1,98 +1,111 @@
-const { StatusCodes } = require('http-status-codes');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
-const NotFoundError = require('../errors/notFound-error');
-const BadRequestError = require('../errors/badRequest-error');
-const ConflictError = require('../errors/conflict-error');
 
-const { NODE_ENV, JWT_SECRET } = process.env;
+const { errorText } = require('../utils/constants');
+const ConflictError = require('../utils/errors/ConflictError');
+const ValidationError = require('../utils/errors/ValidatError');
+const NotFoundError = require('../utils/errors/NotFoundError');
 
-function getUserMe(req, res, next) {
-  User.findById(req.user._id)
-    .orFail(() => {
-      throw new NotFoundError('Пользователь не найден');
-    })
-    .then((user) => res.status(200).send(user))
-    .catch(next);
-}
+const { NODE_ENV, SECRET_KEY } = process.env;
+const { SECRET_KEY_DEV } = require('../utils/config');
+const { CREATED } = require('../utils/errors/ResponseStatus');
 
-const createUser = (req, res, next) => {
-  const {
-    name, email, password,
-  } = req.body;
+// Логин пользователя
+const UserLogin = (req, res, next) => {
+  const { email, password } = req.body;
+  return User.findUserByCredentials(email, password)
+    .then((user) => {
+      // Создание JWT-токена
+      const token = jwt.sign(
+        { _id: user._id },
+        NODE_ENV === 'production' ? SECRET_KEY : SECRET_KEY_DEV,
+        { expiresIn: '7d' },
+      );
 
-  bcrypt.hash(password, 10)
-    .then((hash) => {
-      User
-        .create({
-          name, email, password: hash,
-        })
-        .then((user) => {
-          const { password: userPassword, ...userData } = user.toObject();
-          // убираем поле password из объекта пользователя
-          res.status(StatusCodes.CREATED).send(userData);
-        })
-        .catch((err) => {
-          if (err.name === 'ValidationError') {
-            next(new BadRequestError('Переданы некорректные данные при создании пользователя '));
-          } else if (err.code === 11000) {
-            next(new ConflictError('Пользователь с таким email уже зарегистрирован'));
-          } else {
-            next(err);
-          }
-        });
+      res.send({ token });
     })
     .catch(next);
 };
 
-const updateUser = (req, res, next) => {
-  const { name, email } = req.body;
-  User.findByIdAndUpdate(req.user._id, { name, email }, { new: true, runValidators: true })
-    .then((user) => {
-      if (!user) {
-        throw new NotFoundError('Пользователь по указанному _id не найден');
-      }
-      return res.status(200).send(user);
-    })
+// Создание нового пользователя
+const createUser = (req, res, next) => {
+  bcrypt
+    .hash(req.body.password, 10)
+    .then((hash) => User.create({
+      email: req.body.email,
+      password: hash,
+      name: req.body.name,
+    }))
+    .then((user) => res.status(CREATED).send({
+      email: user.email,
+      name: user.name,
+      _id: user._id,
+    }))
     .catch((err) => {
-      if (err.name === 'ValidationError') {
-        next(new BadRequestError('Переданы некорректные данные при обновлении профиля'));
-      } else if (err.code === 11000) {
-        next(new ConflictError('Пользователь с таким email уже зарегистрирован'));
+      if (err.code === 11000) {
+        next(new ConflictError(errorText.EMAILDUPLICATIONERROR));
+      } else if (err.name === 'ValidationError') {
+        next(
+          new ValidationError(errorText.INVALIDATIONERROR),
+        );
       } else {
         next(err);
       }
     });
 };
 
-const login = (req, res, next) => {
-  const { email, password } = req.body;
-  User
-    .findUserByCredentials(email, password)
-    .then((user) => {
-      const token = jwt.sign({ _id: user._id }, NODE_ENV === 'production' ? JWT_SECRET : 'dev-secret', { expiresIn: '7d' });
-      const { password: userPassword, ...userData } = user.toObject();
-      res
-        .cookie('jwt', token, {
-          maxAge: 3600000 * 24 * 7,
-          httpOnly: true,
-          sameSite: 'none',
-          secure: true,
-        })
-        .send(userData);
+const getCurrentUserInfo = (req, res, next) => {
+  const userId = req.user._id;
+  User.findById(userId)
+    .orFail(() => {
+      throw new NotFoundError(errorText.IDNOTFOUNDERROR);
     })
-    .catch(next);
-};
-const logout = (req, res) => {
-  res.clearCookie('jwt').send({ message: 'Вы вышли' });
+    .then((user) => {
+      res.send(user);
+    })
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        next(new ValidationError(errorText.USERNOTFOUNDERROR));
+      } else {
+        next(err);
+      }
+    });
 };
 
-// Экспорт модулей
+// Обновление данных пользователя
+const editProfileUserInfo = (req, res, next) => {
+  const { email, name } = req.body;
+  User.findByIdAndUpdate(
+    req.user._id,
+    { email, name },
+    {
+      new: true,
+      runValidators: true,
+    },
+  )
+    .orFail(() => {
+      throw new NotFoundError(errorText.IDNOTFOUNDERROR);
+    })
+    .then((user) => {
+      res.send(user);
+    })
+    .catch((err) => {
+      if (err.code === 11000) {
+        next(new ConflictError(errorText.EMAILDUPLICATIONERROR));
+      } else if (err.name === 'ValidationError') {
+        next(
+          new ValidationError(errorText.INVALIDATIONERROR),
+        );
+      } else {
+        next(err);
+      }
+    });
+};
+
 module.exports = {
-  getUserMe,
   createUser,
-  updateUser,
-  login,
-  logout,
+  getCurrentUserInfo,
+  editProfileUserInfo,
+  UserLogin,
 };
